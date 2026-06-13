@@ -1,5 +1,7 @@
 # Requerimientos del Proyecto: Modelo SVM para Clasificación de Resultados Electorales
 
+> **Estado:** requerimientos validados con el usuario. Decisiones de implementación detalladas en [`IMPLEMENTATION-PLAN.md`](IMPLEMENTATION-PLAN.md). Este archivo describe **qué** se quiere construir; el `IMPLEMENTATION-PLAN.md` describe **cómo**.
+
 ## 1. Objetivo general
 
 Construir un sistema en Python que:
@@ -39,85 +41,89 @@ Construir un sistema en Python que:
   - `DEM` si `per_point_diff <= 0`
 - Es una clasificación **binaria**, ideal para SVM con clase nominal en WEKA (SMO).
 
-### 3.2 Variables predictoras (features)
-Usar variables numéricas del dataset original (sin datos demográficos por ahora; se evaluará agregarlos en una iteración futura):
+### 3.2 Variables predictoras (features) — **DECIDIDO**
+
+Se utilizarán **únicamente las 3 variables crudas** que no están matemáticamente derivadas de la clase:
+
 - `votes_gop`
 - `votes_dem`
 - `total_votes`
-- `diff`
-- `per_gop`
-- `per_dem`
-- `per_point_diff` *(opcional: evaluar si excluirla de las features ya que define directamente la clase y podría causar separación trivial/perfecta; discutir si se usa solo para construir la clase y no como feature)*
 
-> ⚠️ Importante: revisar si `per_point_diff`, `diff`, `per_gop` y `per_dem` generan **fuga de datos (data leakage)** respecto a la clase `winner`, ya que están matemáticamente relacionadas. Si la separación es trivial, considerar usar un subconjunto de features menos directo (ej. solo `votes_gop`, `votes_dem`, `total_votes`) para que el ejercicio de SVM sea pedagógicamente interesante.
+> ⚠️ **Decisión sobre fuga de datos (data leakage):** las columnas `diff`, `per_gop`, `per_dem` y `per_point_diff` se excluyen de las features porque son derivadas directas de `votes_gop`, `votes_dem` y `total_votes`, e incluyen el `per_point_diff` que define la clase. Usarlas produciría una separación trivial (accuracy ≈ 100%) que no aporta valor pedagógico al ejercicio SVM. En una iteración futura podrían reconsiderarse junto con variables demográficas externas (ver §8).
 
 ---
 
 ## 4. Pipeline de trabajo (Python)
 
-1. **Carga y exploración de datos**
-   - Descargar el CSV desde GitHub.
-   - Revisar valores nulos, tipos de datos, distribución de clases (`GOP` vs `DEM`).
-   - Estadísticas descriptivas básicas.
+### 4.1 Carga y exploración de datos
+- Descargar el CSV desde GitHub (con cache local en `data/`).
+- Revisar valores nulos, tipos de datos, distribución de clases (`GOP` vs `DEM`).
+- Estadísticas descriptivas básicas de las 3 features.
 
-2. **Preprocesamiento**
-   - Crear la columna `winner` a partir de `per_point_diff`.
-   - Seleccionar features finales (ver sección 3.2 y advertencia de leakage).
-   - División en conjuntos de **entrenamiento y prueba** (ej. 80/20).
-   - Escalado de variables (ej. `StandardScaler`), necesario para SVM.
+### 4.2 Preprocesamiento
+- Crear la columna `winner` a partir de `per_point_diff`.
+- Seleccionar las 3 features finales según §3.2.
+- División en conjuntos de **entrenamiento y prueba**: **80/20 estratificado** con `random_state=42` (reproducibilidad).
+- Escalado de variables con `StandardScaler` (fit solo en train, transform en test).
 
-3. **Entrenamiento del modelo SVM**
-   - Usar `sklearn.svm.SVC`.
-   - Probar **kernel lineal**.
-   - Experimentar con el parámetro `C` para ilustrar:
-     - **Margen duro (hard margin):** valores altos de `C` (penaliza fuertemente errores de clasificación, busca separación perfecta).
-     - **Margen blando (soft margin):** valores bajos de `C` (permite errores, busca un margen más amplio/generalizable).
-   - (Opcional, no obligatorio) Visualizar el hiperplano de decisión con `sklearn.svm` usando 2 features.
+### 4.3 Entrenamiento del modelo SVM
+- Usar `sklearn.svm.SVC` con `kernel='linear'`.
+- Evaluar **5 valores de C** para ilustrar margen duro vs blando: `C ∈ {0.01, 0.1, 1.0, 10, 100}`.
+- Documentar el efecto de C en accuracy y número de vectores de soporte.
 
-4. **Evaluación del modelo**
-   - Métricas: *accuracy*, matriz de confusión, precisión, recall, F1-score.
-   - Comparar resultados entre distintos valores de `C` (margen duro vs blando).
+### 4.4 Evaluación del modelo
+- Métricas: *accuracy*, matriz de confusión, precisión, recall, F1-score **por clase** (no solo accuracy global, por el desbalance ~75/25 GOP/DEM).
+- Comparar resultados entre los 5 valores de `C`.
+- Identificar el `C` con mejor balance (sugerencia: mejor F1 de la clase DEM).
 
-5. **Sistema de proyección (predicción de nuevos datos)**
-   - Crear una función o script que:
-     - Reciba como entrada nuevos valores para las features seleccionadas (ej. `votes_gop`, `votes_dem`, `total_votes`, etc. de un condado nuevo).
-     - Aplique el mismo escalado usado en entrenamiento.
-     - Devuelva la predicción de clase (`GOP` o `DEM`) usando el modelo SVM entrenado.
+### 4.5 Sistema de proyección (predicción de nuevos datos)
+- Función `predict_county(votes_gop, votes_dem, total_votes, model, scaler) -> str` que:
+  - Recibe valores crudos.
+  - Aplica el `StandardScaler` entrenado.
+  - Devuelve `'GOP'` o `'DEM'`.
+- Demostración con 3 condados inventados (GOP claro, DEM claro, reñido).
 
-6. **Exportación a formato ARFF para WEKA**
-   - Exportar el dataset preprocesado (features + clase `winner`) a `.arff`.
-   - Asegurar que la clase `winner` esté correctamente definida como atributo **nominal** (`{GOP, DEM}`).
+### 4.6 Exportación a formato ARFF para WEKA
+- Exportar el dataset **sin escalar** (3 features crudas + clase `winner`) a `outputs/dataset_2020_preprocesado.arff`.
+- Estructura mínima:
+  - `@ATTRIBUTE votes_gop   NUMERIC`
+  - `@ATTRIBUTE votes_dem   NUMERIC`
+  - `@ATTRIBUTE total_votes NUMERIC`
+  - `@ATTRIBUTE winner      {GOP, DEM}`
+- WEKA aplicará el filtro `Standardize` internamente para mantener paridad de escala con Python.
 
 ---
 
 ## 5. Validación cruzada con WEKA
 
-1. Cargar el archivo `.arff` exportado en WEKA.
-2. Ir a la pestaña **Classify**.
-3. Seleccionar el clasificador: `weka.classifiers.functions.SMO`.
-4. Configurar la clase nominal (`(Nom) winner`).
-5. Ejecutar y obtener:
-   - Accuracy
-   - Matriz de confusión
-   - Otras métricas relevantes (precision, recall, F-measure)
-6. **Comparar** estos resultados con los obtenidos en Python (sklearn), documentando cualquier diferencia y posibles causas (ej. diferencias en kernel, parámetros por defecto, escalado de datos, manejo de `C`/`gamma`, etc.).
+1. Cargar `outputs/dataset_2020_preprocesado.arff` en WEKA.
+2. Aplicar filtro `weka.filters.unsupervised.attribute.Standardize` a las 3 features numéricas (NO a `winner`).
+3. Ir a la pestaña **Classify**.
+4. Seleccionar el clasificador: `weka.classifiers.functions.SMO` con kernel polinómico de grado 1 (equivalente a lineal).
+5. Configurar la clase nominal: `(Nom) winner`.
+6. **Test options:** *Percentage split* = 80%, *Random seed* = 42.
+7. *Start* y obtener accuracy, matriz de confusión, precision, recall, F-measure.
+8. **Comparación "ambiental":** estos resultados se contrastan con los de Python. Los splits NO son idénticos al 100% (los algoritmos de muestreo aleatorio de sklearn y WEKA difieren), por lo que variaciones de ~0.5-1% en accuracy son esperables. La comparación es válida como "mismo dataset + mismo algoritmo + mismo C + misma escala" (ver [`outputs/comparacion_python_vs_weka.md`](outputs/comparacion_python_vs_weka.md)).
 
 ---
 
 ## 6. Entregables esperados
 
-1. Script(s) o notebook en Python que cubran: carga de datos, preprocesamiento, entrenamiento SVM, evaluación, y sistema de proyección de nuevos datos.
-2. Archivo `.arff` exportado para WEKA.
-3. Documento/resumen comparando resultados Python vs WEKA (tabla de métricas + observaciones sobre diferencias).
-4. (Opcional) Visualización del hiperplano SVM con `sklearn.svm` para 2 features seleccionadas.
+1. **`notebook.ipynb`** — carga, preprocesamiento, entrenamiento SVM, evaluación y sistema de predicción. Ejecutable de inicio a fin.
+2. **`outputs/dataset_2020_preprocesado.arff`** — insumo para WEKA.
+3. **`outputs/INSTRUCCIONES_WEKA.md`** — pasos exactos para replicar el experimento en WEKA.
+4. **`outputs/comparacion_python_vs_weka.md`** — tabla comparativa (plantilla) + observaciones.
+5. **`requirements.txt`** + **`README.md`** — instrucciones de entorno (venv) y uso del repositorio.
+6. **(Opcional)** Visualización del hiperplano SVM con 2 features (`votes_gop` vs `votes_dem`).
 
 ---
 
 ## 7. Conceptos clave a demostrar/explicar
 
 - **Margen duro vs margen blando** en SVM, y cómo el parámetro `C` controla este comportamiento.
+- **Data leakage** cuando las features están matemáticamente relacionadas con la clase.
 - Diferencias prácticas entre implementación en **Python (sklearn)** y **WEKA (SMO)** para el mismo dataset y clase nominal.
-- Interpretación de las métricas de clasificación (accuracy, matriz de confusión, etc.).
+- Interpretación de las métricas de clasificación (accuracy, matriz de confusión, precision/recall/F1 por clase).
 
 ---
 
@@ -125,3 +131,4 @@ Usar variables numéricas del dataset original (sin datos demográficos por ahor
 
 - Incorporar variables demográficas por condado (población, ingreso, % urbano/rural) si se encuentra una fuente accesible, para enriquecer el modelo.
 - Evaluar otros kernels de SVM (RBF, polinomial) si el resultado lineal es insuficiente.
+- Re-evaluar la inclusión de `per_gop`/`per_dem` como features una vez que se tengan más variables externas (con menos riesgo de leakage).
