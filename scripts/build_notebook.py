@@ -357,6 +357,87 @@ cells.append(nbf.v4.new_markdown_cell(
 ))
 
 # ========================================================================
+# FASE 6 — EXPORTACIÓN A ARFF (PARA WEKA)
+# ========================================================================
+cells.append(nbf.v4.new_markdown_cell(
+    """---
+
+## Fase 6 — Exportación a ARFF para WEKA
+
+**Objetivo:** producir `outputs/dataset_2020_preprocesado.arff` listo para abrir en WEKA Explorer.
+
+**Decisiones de formato:**
+- Se exportan los datos **crudos** (sin escalar) para que WEKA aplique el filtro `Standardize` en su propio flujo, garantizando paridad de escala con lo que ve Python.
+- Solo 3 atributos numéricos + 1 atributo nominal `winner {GOP, DEM}`.
+- Codificación UTF-8, fin de línea `\n`, sin espacios entre campos."""
+))
+
+cells.append(nbf.v4.new_markdown_cell("### 6.1 Escribir el archivo ARFF"))
+cells.append(nbf.v4.new_code_cell(
+    """OUTPUT_DIR = Path('outputs')
+OUTPUT_DIR.mkdir(exist_ok=True)
+ARFF_PATH = OUTPUT_DIR / 'dataset_2020_preprocesado.arff'
+
+relation_name = 'us_county_election_2020_svm'
+attributes_block = '\\n'.join(
+    f'@ATTRIBUTE {col:<13} NUMERIC' if col != 'winner'
+    else f'@ATTRIBUTE {col:<13} {{GOP, DEM}}'
+    for col in feature_cols + ['winner']
+)
+
+with open(ARFF_PATH, 'w', encoding='utf-8') as f:
+    f.write(f'@RELATION {relation_name}\\n')
+    f.write('\\n')
+    f.write(attributes_block + '\\n')
+    f.write('\\n')
+    f.write('@DATA\\n')
+    for _, row in df[feature_cols + ['winner']].iterrows():
+        f.write(f\"{int(row['votes_gop'])},{int(row['votes_dem'])},\"\n                f\"{int(row['total_votes'])},{row['winner']}\\n\")
+
+print(f'ARFF escrito en: {ARFF_PATH}')
+print(f'Tamaño: {ARFF_PATH.stat().st_size / 1024:.1f} KB')"""
+))
+
+cells.append(nbf.v4.new_markdown_cell("### 6.2 Validar la estructura del ARFF"))
+cells.append(nbf.v4.new_code_cell(
+    """with open(ARFF_PATH, 'r', encoding='utf-8') as f:
+    lines = f.read().splitlines()
+
+header_lines  = [l for l in lines if l.startswith('@')]
+data_lines    = [l for l in lines if l and not l.startswith('@') and not l.isspace()]
+
+print('=== ENCABEZADO ===')
+for l in header_lines:
+    print(l)
+print()
+print(f'Líneas de @DATA: {len(data_lines)} (esperado: {len(df)})')
+assert len(data_lines) == len(df), 'Discrepancia en el número de filas'
+assert '@RELATION ' in lines[0]
+assert any('@ATTRIBUTE winner' in l and '{GOP, DEM}' in l for l in lines)
+print('Validación OK: estructura ARFF correcta.')"""
+))
+
+cells.append(nbf.v4.new_markdown_cell("### 6.3 Primeras líneas del archivo (vista previa)"))
+cells.append(nbf.v4.new_code_cell(
+    """with open(ARFF_PATH, 'r', encoding='utf-8') as f:
+    for i, line in enumerate(f):
+        if i < 10:
+            print(line.rstrip())
+        else:
+            break"""
+))
+
+cells.append(nbf.v4.new_markdown_cell(
+    """### 6.4 Resumen de la Fase 6
+
+- ✅ `outputs/dataset_2020_preprocesado.arff` generado (3 numéricas + `winner` nominal).
+- ✅ 3,152 instancias (1 por condado), sin escalado.
+- ✅ Codificación UTF-8 y sintaxis ARFF estándar (compatible con WEKA Explorer).
+
+**Listo para la Fase 7 (instrucciones WEKA).**"""
+))
+
+# ========================================================================
 # Metadata y escritura
 # ========================================================================
 nb['cells'] = cells
