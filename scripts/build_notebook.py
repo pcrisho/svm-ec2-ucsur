@@ -438,6 +438,114 @@ cells.append(nbf.v4.new_markdown_cell(
 ))
 
 # ========================================================================
+# FASE 9 (OPCIONAL) — VISUALIZACIÓN DEL HIPERPLANO
+# ========================================================================
+cells.append(nbf.v4.new_markdown_cell(
+    """---
+
+## Fase 9 (opcional) — Visualización del hiperplano SVM en 2D
+
+**Objetivo:** ilustrar el comportamiento del SVM lineal usando solo 2 features (`votes_gop`, `votes_dem`) para poder pintar el plano.
+
+- Se reentrena un SVM con esas 2 features (sin `total_votes`).
+- Se pinta:
+  - Puntos de entrenamiento coloreados por clase.
+  - **Hiperplano** de decisión: `w·x + b = 0`.
+  - **Márgenes**: `w·x + b = ±1`.
+  - **Vectores de soporte** destacados.
+- Gráfico exportado a `outputs/svm_hiperplano_2d.png`."""
+))
+
+cells.append(nbf.v4.new_markdown_cell("### 9.1 Reentrenar SVM con 2 features"))
+cells.append(nbf.v4.new_code_cell(
+    """from sklearn.svm import SVC
+
+# Tomar el mejor C de la Fase 4 (C=100)
+C_best = float(best_name.split('=')[1])
+
+# Subset: solo votes_gop y votes_dem (índices 0 y 1)
+X_train_2d = X_train[:, :2]
+X_test_2d  = X_test[:, :2]
+
+svm_2d = SVC(kernel='linear', C=C_best, random_state=RANDOM_STATE)
+svm_2d.fit(X_train_2d, y_train)
+print(f'SVM 2D entrenado con C={C_best}')
+print(f'Vectores de soporte: {svm_2d.n_support_.tolist()}')
+print(f'Coeficientes (w): {svm_2d.coef_[0]}')
+print(f'Intercepto (b):   {svm_2d.intercept_[0]:.4f}')"""
+))
+
+cells.append(nbf.v4.new_markdown_cell("### 9.2 Pintar y guardar el gráfico"))
+cells.append(nbf.v4.new_code_cell(
+    """import matplotlib.pyplot as plt
+
+w = svm_2d.coef_[0]
+b = svm_2d.intercept_[0]
+
+# Crear meshgrid sobre el rango de las 2 features (en escala StandardScaler)
+x_min, x_max = X_train_2d[:, 0].min() - 1, X_train_2d[:, 0].max() + 1
+y_min, y_max = X_train_2d[:, 1].min() - 1, X_train_2d[:, 1].max() + 1
+xx, yy = np.meshgrid(
+    np.linspace(x_min, x_max, 500),
+    np.linspace(y_min, y_max, 500),
+)
+Z = svm_2d.predict(np.c_[xx.ravel(), yy.ravel()]).reshape(xx.shape)
+
+# Mapeo de clases a colores
+color_map = {'GOP': '#d62728', 'DEM': '#1f77b4'}
+
+fig, ax = plt.subplots(figsize=(10, 8))
+ax.contourf(xx, yy, (Z == 'GOP').astype(int), alpha=0.15,
+            levels=[-0.5, 0.5, 1.5], colors=['#1f77b4', '#d62728'])
+
+# Puntos de entrenamiento
+for cls, color in color_map.items():
+    mask = y_train == cls
+    ax.scatter(X_train_2d[mask, 0], X_train_2d[mask, 1],
+               c=color, label=f'Train {cls} (n={mask.sum()})',
+               s=18, alpha=0.5, edgecolors='none')
+
+# Vectores de soporte (con borde)
+ax.scatter(svm_2d.support_vectors_[:, 0], svm_2d.support_vectors_[:, 1],
+           s=70, facecolors='none', edgecolors='k', linewidths=1.2,
+           label=f'Vectores de soporte (n={len(svm_2d.support_)})')
+
+# Hiperplano y márgenes
+# w·x + b = 0   ->   y = -(w0/w1)*x - b/w1
+x_line = np.linspace(x_min, x_max, 100)
+if abs(w[1]) > 1e-9:
+    y_hyper  = -(w[0] / w[1]) * x_line - b / w[1]
+    y_margin1 = -(w[0] / w[1]) * x_line - (b - 1) / w[1]
+    y_margin2 = -(w[0] / w[1]) * x_line - (b + 1) / w[1]
+    ax.plot(x_line, y_hyper,  'k-',  linewidth=2, label='Hiperplano w·x+b=0')
+    ax.plot(x_line, y_margin1, 'k--', linewidth=1, label='Margen w·x+b=+1')
+    ax.plot(x_line, y_margin2, 'k--', linewidth=1, label='Margen w·x+b=-1')
+
+ax.set_xlabel('votes_gop (escalado)')
+ax.set_ylabel('votes_dem (escalado)')
+ax.set_title(f'SVM lineal (C={C_best}) sobre votes_gop vs votes_dem')
+ax.legend(loc='upper right', framealpha=0.9)
+ax.set_xlim(x_min, x_max)
+ax.set_ylim(y_min, y_max)
+
+fig.tight_layout()
+fig_path = OUTPUT_DIR / 'svm_hiperplano_2d.png'
+fig.savefig(fig_path, dpi=120)
+plt.show()
+print(f'Gráfico guardado en: {fig_path}')"""
+))
+
+cells.append(nbf.v4.new_markdown_cell(
+    """### 9.3 Resumen de la Fase 9
+
+- ✅ SVM reentrenado con 2 features (`votes_gop`, `votes_dem`) usando el mejor `C` de la Fase 4.
+- ✅ Hiperplano, márgenes y vectores de soporte visualizados.
+- ✅ Gráfico exportado a `outputs/svm_hiperplano_2d.png`.
+
+**Con esto se completan todas las fases del proyecto (0-9).** La visualización confirma visualmente que el SVM lineal separa las clases con un hiperplano muy cercano a la diagonal `votes_gop = votes_dem` (con un pequeño sesgo hacia la clase mayoritaria GOP, consistente con el desbalance 82/18)."""
+))
+
+# ========================================================================
 # Metadata y escritura
 # ========================================================================
 nb['cells'] = cells
