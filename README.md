@@ -171,5 +171,6 @@ svm-ec2-ucsur/
 ## 7. Referencias
 
 - Dataset: [tonmcg/US_County_Level_Election_Results_08-24](https://github.com/tonmcg/US_County_Level_Election_Results_08-24)
+- Descarga directa del CSV usado: [2020_US_County_Level_Presidential_Results.csv](https://raw.githubusercontent.com/tonmcg/US_County_Level_Election_Results_08-24/master/2020_US_County_Level_Presidential_Results.csv)
 - [scikit-learn — SVC](https://scikit-learn.org/stable/modules/generated/sklearn.svm.SVC.html)
 - [WEKA — SMO](https://weka.sourceforge.io/doc.dev/weka/classifiers/functions/SMO.html)
