@@ -1,0 +1,2 @@
+# svm-ec2-ucsur
+ Construir un sistema en Python que: Entrene un modelo de Support Vector Machine (SVM) usando sklearn.svm con un dataset de resultados electorales. Permita ingresar nuevos datos (de un condado hipotético) y que el modelo entrenado clasifique el resultado (GOP o DEM). Exporte el dataset preprocesado a formato .arff para validar el mismo modelo en WEKA (función SMO, clase nominal) y comparar resultados entre WEKA y Python.
